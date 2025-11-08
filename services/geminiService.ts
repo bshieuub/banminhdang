@@ -1,10 +1,11 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Exercise, Subject, Question, QuestionType } from "../types";
 
-const API_KEY = process.env.API_KEY;
+// Sử dụng `import.meta.env.VITE_API_KEY` để tương thích với Vite
+const API_KEY = import.meta.env.VITE_API_KEY;
 
 if (!API_KEY) {
-  console.warn("API_KEY environment variable not set. Using a mock response.");
+  console.warn("VITE_API_KEY environment variable not set. Using a mock response.");
 }
 
 const ai = API_KEY ? new GoogleGenAI({ apiKey: API_KEY }) : null;

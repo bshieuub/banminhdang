@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getEncouragement } from '../services/geminiService';
+import { getEncouragement, EncouragementResponse } from '../services/geminiService';
 import { StarIcon } from './icons/StarIcon';
 
 interface ResultsProps {
@@ -12,7 +12,7 @@ interface ResultsProps {
 }
 
 const Results: React.FC<ResultsProps> = ({ score, onBack, onReview }) => {
-  const [encouragement, setEncouragement] = useState<string>('Đang nghĩ lời khen cho con...');
+  const [encouragement, setEncouragement] = useState<EncouragementResponse>({ text: 'Đang nghĩ lời khen cho con...', imageUrl: null });
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -46,11 +46,20 @@ const Results: React.FC<ResultsProps> = ({ score, onBack, onReview }) => {
             </div>
         </div>
 
-        <div className="mt-8 p-6 bg-sky-50 rounded-lg min-h-[100px] flex items-center justify-center">
+        <div className="mt-8 p-6 bg-sky-50 rounded-lg min-h-[200px] flex flex-col items-center justify-center">
           {isLoading ? (
              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500"></div>
           ) : (
-            <p className="text-xl italic text-sky-800">"{encouragement}"</p>
+            <>
+                {encouragement.imageUrl && (
+                    <img 
+                        src={encouragement.imageUrl} 
+                        alt="Hình ảnh động viên" 
+                        className="max-w-xs w-full h-auto object-contain rounded-lg shadow-md mb-6"
+                    />
+                )}
+                <p className="text-xl italic text-sky-800 text-center">"{encouragement.text}"</p>
+            </>
           )}
         </div>
         

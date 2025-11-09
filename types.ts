@@ -16,6 +16,7 @@ export interface Question {
   questionText: string;
   options?: string[];
   correctAnswer: string;
+  imageUrl?: string;
 }
 
 export interface Exercise {
@@ -24,6 +25,11 @@ export interface Exercise {
   subject: Subject;
   questions: Question[];
   createdAt: string;
+  originalFile: {
+    dataUrl: string;
+    name: string;
+    type: string;
+  };
 }
 
 export enum View {

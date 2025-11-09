@@ -17,17 +17,22 @@ const CreateExercise: React.FC<CreateExerciseProps> = ({ onExerciseCreated, onCa
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
     if (selectedFile) {
+      if (selectedFile.size > 10 * 1024 * 1024) { // 10MB limit
+        setError("Kích thước tệp quá lớn. Vui lòng chọn tệp nhỏ hơn 10MB.");
+        return;
+      }
       setFile(selectedFile);
       setError(null);
-      if (selectedFile.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          setPreview(reader.result as string);
-        };
-        reader.readAsDataURL(selectedFile);
-      } else {
-        setPreview(null);
-      }
+      
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (selectedFile.type.startsWith('image/')) {
+            setPreview(reader.result as string);
+        } else {
+            setPreview(null); // No preview for non-image files like PDF
+        }
+      };
+      reader.readAsDataURL(selectedFile);
     }
   };
 
@@ -41,8 +46,25 @@ const CreateExercise: React.FC<CreateExerciseProps> = ({ onExerciseCreated, onCa
     setError(null);
 
     try {
-      const newExercise = await createExerciseFromFile(file);
-      onExerciseCreated(newExercise);
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = (error) => reject(new Error("Không thể đọc tệp: " + error));
+            reader.readAsDataURL(file);
+        });
+
+      const newExerciseData = await createExerciseFromFile(file);
+      
+      const exerciseWithFile: Exercise = {
+        ...newExerciseData,
+        originalFile: {
+            dataUrl: dataUrl,
+            name: file.name,
+            type: file.type,
+        }
+      };
+
+      onExerciseCreated(exerciseWithFile);
     } catch (err: any) {
       setError(err.message || "Đã có lỗi xảy ra. Vui lòng thử lại.");
     } finally {
@@ -122,7 +144,7 @@ const CreateExercise: React.FC<CreateExerciseProps> = ({ onExerciseCreated, onCa
             )}
           </button>
         </div>
-        {isLoading && <p className="text-sm text-center text-gray-500 mt-2">AI đang đọc bài tập, chờ một chút nhé...</p>}
+        {isLoading && <p className="text-sm text-center text-gray-500 mt-2">AI đang phân tích và tạo bài tập điện tử, chờ một chút nhé...</p>}
       </div>
     </div>
   );

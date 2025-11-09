@@ -100,11 +100,13 @@ const App: React.FC = () => {
         );
     }
   };
+  
+  const isSplitView = view === View.DoExercise || view === View.ReviewExercise;
 
   return (
-    <div className="bg-sky-50 min-h-screen text-gray-800">
+    <div className="bg-sky-50 min-h-screen text-gray-800 flex flex-col">
       <Header />
-      <main className="container mx-auto p-4 md:p-8">
+      <main className={`container mx-auto p-4 md:p-8 ${isSplitView ? 'flex-1' : ''}`}>
         {renderView()}
       </main>
       <footer className="text-center p-4 text-sky-600">

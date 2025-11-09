@@ -1,14 +1,19 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { Exercise, Subject, Question, QuestionType } from "../types";
 
-// Sử dụng `import.meta.env.VITE_API_KEY` để tương thích với Vite
-const API_KEY = import.meta.env.VITE_API_KEY;
+// API key được cung cấp qua process.env.API_KEY
+const API_KEY = process.env.API_KEY;
 
 if (!API_KEY) {
-  console.warn("VITE_API_KEY environment variable not set. Using a mock response.");
+  console.warn("Biến môi trường API_KEY chưa được đặt. Sử dụng dữ liệu giả.");
 }
 
 const ai = API_KEY ? new GoogleGenAI({ apiKey: API_KEY }) : null;
+
+export interface EncouragementResponse {
+    text: string;
+    imageUrl: string | null;
+}
 
 const fileToGenerativePart = async (file: File) => {
   const base64EncodedDataPromise = new Promise<string>((resolve) => {
@@ -65,7 +70,9 @@ const exerciseSchema = {
     required: ["title", "subject", "questions"]
 };
 
-export const createExerciseFromFile = async (file: File): Promise<Exercise> => {
+// FIX: Changed return type to Omit<Exercise, 'originalFile'> to match implementation and usage.
+// This function creates exercise data but leaves adding file-specific info to the caller.
+export const createExerciseFromFile = async (file: File): Promise<Omit<Exercise, 'originalFile'>> => {
     if (!ai) {
         console.log("Using mock exercise data.");
         // Mock response for development without API key
@@ -84,10 +91,10 @@ export const createExerciseFromFile = async (file: File): Promise<Exercise> => {
 
     try {
         const filePart = await fileToGenerativePart(file);
-        const prompt = "Phân tích hình ảnh hoặc tài liệu PDF chứa bài tập này và chuyển nó thành định dạng JSON có cấu trúc. Đảm bảo xác định chính xác từng câu hỏi, loại câu hỏi (trắc nghiệm hoặc điền vào chỗ trống), các tùy chọn (nếu có) và câu trả lời đúng. Giữ nguyên nội dung gốc của câu hỏi và câu trả lời.";
+        const prompt = "Phân tích hình ảnh hoặc tài liệu PDF chứa bài tập này và chuyển nó thành định dạng JSON có cấu trúc. Trích xuất chính xác nội dung từng câu hỏi, loại câu hỏi (trắc nghiệm hoặc điền vào chỗ trống), các tùy chọn (nếu có), và đáp án đúng. Bỏ qua bất kỳ hình ảnh nào có trong tài liệu, chỉ tập trung vào phần văn bản.";
 
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-2.5-pro',
             contents: { parts: [filePart, { text: prompt }] },
             config: {
                 responseMimeType: "application/json",
@@ -97,16 +104,19 @@ export const createExerciseFromFile = async (file: File): Promise<Exercise> => {
 
         const jsonText = response.text.trim();
         const parsedData = JSON.parse(jsonText);
+        
+        const questions = parsedData.questions.map((q: any, index: number) => ({
+            ...q,
+            id: `q-${Date.now()}-${index}`,
+        }));
 
-        const newExercise: Exercise = {
+        // FIX: Removed explicit :Exercise type to match the new return type.
+        const newExercise = {
             id: `ex-${Date.now()}`,
             createdAt: new Date().toISOString(),
             title: parsedData.title,
             subject: parsedData.subject,
-            questions: parsedData.questions.map((q: any, index: number) => ({
-                ...q,
-                id: `q-${Date.now()}-${index}`,
-            })),
+            questions: questions,
         };
         return newExercise;
 
@@ -116,7 +126,7 @@ export const createExerciseFromFile = async (file: File): Promise<Exercise> => {
     }
 };
 
-export const getEncouragement = async (score: number, total: number): Promise<string> => {
+export const getEncouragement = async (score: number, total: number): Promise<EncouragementResponse> => {
     if (!ai) {
         const praises = [
             "Làm tốt lắm Minh Đăng ơi! Bạn thật siêu!",
@@ -124,21 +134,44 @@ export const getEncouragement = async (score: number, total: number): Promise<st
             "Hoan hô Minh Đăng! Bạn là một ngôi sao nhỏ!",
             "Giỏi quá! Cứ tiếp tục phát huy nhé bạn!",
         ];
-        return Promise.resolve(praises[Math.floor(Math.random() * praises.length)]);
+        return Promise.resolve({
+            text: praises[Math.floor(Math.random() * praises.length)],
+            imageUrl: null,
+        });
     }
 
     try {
         const percentage = total > 0 ? (score / total) * 100 : 0;
-        const prompt = `Bạn Minh Đăng vừa làm xong bài tập và đạt ${score}/${total} điểm (đạt ${percentage.toFixed(0)}%). Hãy viết một lời khen ngợi thật độc đáo, vui vẻ, và đầy cảm hứng dành cho bạn ấy. Lời khen cần ngắn gọn, tích cực và phù hợp với một bé trai.`;
+        const prompt = `Bạn Minh Đăng, một cậu bé, vừa làm xong bài tập và đạt ${score} trên ${total} điểm (đạt ${percentage.toFixed(0)}%). Hãy:
+1. Viết một lời khen ngợi ngắn gọn (khoảng 1-2 câu), vui vẻ, và đầy cảm hứng cho cậu ấy.
+2. Tạo một hình ảnh minh họa thật dễ thương và phù hợp với lời khen và số điểm, theo phong cách hoạt hình màu sắc tươi sáng để ăn mừng. Nếu điểm cao, hãy vẽ hình ảnh hoành tráng như tên lửa, khủng long siêu nhân, cúp vàng. Nếu điểm chưa cao, hãy vẽ hình ảnh động viên như một mầm cây đang vươn lên hoặc một chú ong chăm chỉ.`;
 
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt
+            model: 'gemini-2.5-flash-image',
+            contents: { parts: [{ text: prompt }] },
+            config: {
+                responseModalities: [Modality.IMAGE],
+            },
         });
+        
+        let text = "Bạn làm tốt lắm!";
+        let imageUrl = null;
 
-        return response.text.trim();
+        // The text part might not exist in the response, so we need to handle it.
+        // It is recommended to use `response.text` to get the text.
+        text = response.text || text;
+
+        for (const part of response.candidates[0].content.parts) {
+            if (part.inlineData) {
+                imageUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+                break; // Assuming only one image
+            }
+        }
+        
+        return { text, imageUrl };
+
     } catch (error) {
         console.error("Error getting encouragement from Gemini:", error);
-        return "Bạn làm tốt lắm!";
+        return { text: "Bạn làm tốt lắm!", imageUrl: null };
     }
 };
